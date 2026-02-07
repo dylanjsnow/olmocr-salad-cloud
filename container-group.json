@@ -1,10 +1,11 @@
 {
-  "name": "",
+  "name": "olmocr-container-group",
   "readme": "$replace",
   "container": {
     "command": [],
     "environmentVariables": {
-      "TP_SIZE": "1"
+      "TP_SIZE": "1",
+      "MODEL_ID": "allenai/olmOCR-2-7B-1025-FP8"
     },
     "image": "saladtechnologies/salad-vllm-server:1.0.0",
     "imageCaching": true,

@@ -12,7 +12,7 @@ ENDPOINT = "https://romaine-ceviche-3b19vknj8drqwzvi.salad.cloud/v1/chat/complet
 MODEL_ID = "allenai/olmOCR-2-7B-1025-FP8"
 MAX_EDGE_PX = 1400
 REQUEST_TIMEOUT_SEC = 180
-IMAGE_FORMAT = "jpeg"
+IMAGE_FORMAT = "png"
 JPEG_QUALITY = 60
 
 
@@ -41,7 +41,7 @@ def render_first_page_to_image(pdf_path: Path, output_path: Path) -> None:
     )
 
 
-def build_payload(image_bytes: bytes) -> bytes:
+def build_payload(image_bytes: bytes, image_format: str = "png") -> bytes:
     encoded = base64.b64encode(image_bytes).decode("ascii")
     payload = {
         "model": MODEL_ID,
@@ -60,14 +60,14 @@ def build_payload(image_bytes: bytes) -> bytes:
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:image/{IMAGE_FORMAT};base64,{encoded}",
+                            "url": f"data:image/{image_format};base64,{encoded}",
                         },
                     },
                 ],
             }
         ],
         "temperature": 0,
-        "max_tokens": 2048,
+        "max_tokens": 4096,
     }
     return json.dumps(payload).encode("utf-8")
 
@@ -94,13 +94,26 @@ def send_request(payload: bytes) -> str:
 
 
 def main() -> None:
-    pdf_path = Path("data/1-23-2026 402f_Notice.pdf")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        image_path = Path(tmpdir) / f"notice_page1.{IMAGE_FORMAT}"
-        render_first_page_to_image(pdf_path, image_path)
-        payload = build_payload(image_path.read_bytes())
+    image_path = Path("data/excerpt_layout.png")
+    if not image_path.exists():
+        raise FileNotFoundError(f"Image not found: {image_path}")
+    
+    image_bytes = image_path.read_bytes()
+    # Determine format from file extension
+    image_format = image_path.suffix[1:] if image_path.suffix else "png"
+    payload = build_payload(image_bytes, image_format)
     response_text = send_request(payload)
-    print(response_text)
+    
+    # Parse and print just the markdown content
+    try:
+        response_json = json.loads(response_text)
+        if "choices" in response_json and len(response_json["choices"]) > 0:
+            content = response_json["choices"][0]["message"]["content"]
+            print(content)
+        else:
+            print(response_text)
+    except json.JSONDecodeError:
+        print(response_text)
 
 
 if __name__ == "__main__":

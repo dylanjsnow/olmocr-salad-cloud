@@ -7,6 +7,11 @@ import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from dotenv import load_dotenv
+
+# Load .env (cwd in container is /app; locally use project root or src)
+load_dotenv()
+
 import requests
 from pypdf import PdfReader
 
@@ -18,16 +23,17 @@ from olmocr.train.dataloader import FrontMatterParser
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# vLLM server URL (same host, port used by vllm_server_task in pipeline)
-VLLM_PORT = int(os.environ.get("VLLM_PORT", "30024"))
-VLLM_BASE = os.environ.get("VLLM_BASE", f"http://127.0.0.1:{VLLM_PORT}")
+# Config from .env / environment (load_dotenv already run above)
+def _env(key: str, default: str) -> str:
+    return os.environ.get(key, default)
+
+VLLM_PORT = int(_env("VLLM_PORT", "30024"))
+VLLM_BASE = _env("VLLM_BASE", f"http://127.0.0.1:{VLLM_PORT}")
 COMPLETION_URL = f"{VLLM_BASE.rstrip('/')}/v1/chat/completions"
-TARGET_LONGEST_IMAGE_DIM = int(os.environ.get("TARGET_LONGEST_IMAGE_DIM", "1288"))
+TARGET_LONGEST_IMAGE_DIM = int(_env("TARGET_LONGEST_IMAGE_DIM", "1288"))
 MAX_TOKENS = 8000
-MODEL_NAME = os.environ.get("OLMOCR_MODEL_NAME", "olmocr")
-# Process this many pages concurrently so vLLM can batch and use the GPU (KV cache).
-# Pipeline uses hundreds of concurrent requests; 32–64 keeps one PDF conversion busy.
-MAX_CONCURRENT_PAGES = int(os.environ.get("MAX_CONCURRENT_PAGES", "64"))
+MODEL_NAME = _env("OLMOCR_MODEL_NAME", "olmocr")
+MAX_CONCURRENT_PAGES = int(_env("MAX_CONCURRENT_PAGES", "64"))
 
 
 def build_page_query(local_pdf_path: str, page: int) -> dict:
@@ -113,6 +119,11 @@ def create_app():
         except Exception:
             return False
 
+    def _probe_response(timeout: float = 1) -> tuple[str, int]:
+        """Return ('', 200) if vLLM ready, ('', 503) otherwise. For Salad health probes."""
+        ok = _vllm_ready(timeout=timeout)
+        return "", 200 if ok else 503
+
     @app.route("/", methods=["GET"])
     @app.route("/health", methods=["GET"])
     def health():
@@ -120,17 +131,22 @@ def create_app():
         ok = _vllm_ready(timeout=5)
         return jsonify({"status": "ok" if ok else "vllm_unavailable", "vllm_ready": ok}), 200 if ok else 503
 
+    # Salad Cloud health probes (https://docs.salad.com/container-engine/explanation/infrastructure-platform/health-probes)
+    # HTTP/1.X, port from env, 1s timeout. All check vLLM readiness; Salad uses failure/success to decide actions.
+    @app.route("/startup", methods=["GET"])
+    def startup_probe():
+        """Startup probe: runs first. Fails repeatedly → container restarted. Use initial_delay ~60s, period 10s."""
+        return _probe_response(timeout=1)
+
+    @app.route("/live", methods=["GET"])
+    def liveness_probe():
+        """Liveness probe: container healthy? Fails repeatedly → container restarted. Use period 10s, failure_threshold 3."""
+        return _probe_response(timeout=1)
+
     @app.route("/hc", methods=["GET"])
-    def readiness():
-        """
-        Readiness probe for Job Queue Service (e.g. Salad).
-        Returns 200 when vLLM is ready to receive jobs, 503 otherwise.
-        Use a 1s timeout so the probe completes within typical timeout limits.
-        """
-        ok = _vllm_ready(timeout=1)
-        if ok:
-            return "", 200
-        return "", 503
+    def readiness_probe():
+        """Readiness probe: ready for traffic? Fails → no traffic routed; container keeps running. Use period 10s, failure_threshold 3."""
+        return _probe_response(timeout=1)
 
     @app.route("/convert", methods=["POST"])
     def convert():
@@ -174,7 +190,7 @@ def create_app():
 
 
 if __name__ == "__main__":
-    host = os.environ.get("HOST", "0.0.0.0")
-    port = int(os.environ.get("PORT", "8000"))
+    host = _env("HOST", "0.0.0.0")
+    port = int(_env("PORT", "8000"))
     app = create_app()
     app.run(host=host, port=port, threaded=True)

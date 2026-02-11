@@ -1,43 +1,27 @@
 #!/usr/bin/env bash
-# Start vLLM (olmOCR) in the background, wait for ready, then run the conversion API.
-# Matches vllm_server_task() / vllm_server_host() from olmocr pipeline.
+# Start vLLM (olmOCR), wait for ready, then run the conversion API.
 
 set -e
 
-VLLM_PORT="${VLLM_PORT:-30024}"
-PORT="${PORT:-8000}"
-HOST="${HOST:-0.0.0.0}"
-# Model: use repo id so vLLM uses pre-downloaded cache (HF_HOME set in with-model image)
-MODEL_PATH="${OLMOCR_MODEL_PATH:-allenai/olmOCR-2-7B-1025-FP8}"
+# Load defaults from .env (set -a exports vars when sourced)
+[ -f /app/.env ] && set -a && source /app/.env && set +a
 
-export VLLM_PORT
-export PORT
-export HOST
-
-# Same defaults as olmocr pipeline (vllm_server_task)
-TP="${TENSOR_PARALLEL_SIZE:-1}"
-DP="${DATA_PARALLEL_SIZE:-1}"
-GPU_UTIL="${GPU_MEMORY_UTILIZATION:-}"
-MAX_MODEL_LEN="${MAX_MODEL_LEN:-16384}"
+echo "Starting vLLM on port $VLLM_PORT (model: ${OLMOCR_MODEL_PATH:-allenai/olmOCR-2-7B-1025-FP8}) ..."
+export OMP_NUM_THREADS=1
 
 VLLM_CMD=(
-  vllm serve "$MODEL_PATH"
+  vllm serve "${OLMOCR_MODEL_PATH:-allenai/olmOCR-2-7B-1025-FP8}"
   --port "$VLLM_PORT"
   --disable-log-requests
   --uvicorn-log-level warning
   --served-model-name olmocr
-  --tensor-parallel-size "$TP"
-  --data-parallel-size "$DP"
+  --tensor-parallel-size "${TENSOR_PARALLEL_SIZE:-1}"
+  --data-parallel-size "${DATA_PARALLEL_SIZE:-1}"
   --limit-mm-per-prompt '{"video": 0}'
-  --max-model-len "$MAX_MODEL_LEN"
+  --max-model-len "${MAX_MODEL_LEN:-16384}"
 )
+[[ -n "${GPU_MEMORY_UTILIZATION:-}" ]] && VLLM_CMD+=(--gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}")
 
-if [ -n "$GPU_UTIL" ]; then
-  VLLM_CMD+=(--gpu-memory-utilization "$GPU_UTIL")
-fi
-
-echo "Starting vLLM on port $VLLM_PORT (model: $MODEL_PATH) ..."
-export OMP_NUM_THREADS=1
 "${VLLM_CMD[@]}" &
 VLLM_PID=$!
 
@@ -49,7 +33,7 @@ cleanup() {
 }
 trap cleanup SIGTERM SIGINT
 
-# Wait for vLLM to be ready (same idea as vllm_server_ready in pipeline)
+# Wait for vLLM to be ready
 VLLM_URL="http://127.0.0.1:${VLLM_PORT}/v1/models"
 MAX_ATTEMPTS="${MAX_SERVER_READY_TIMEOUT:-600}"
 attempt=1
@@ -69,6 +53,5 @@ if [ "$attempt" -gt "$MAX_ATTEMPTS" ]; then
   exit 1
 fi
 
-# Run the conversion API (health on /, convert on POST /convert)
 echo "Starting conversion API on $HOST:$PORT ..."
 exec python /app/app.py

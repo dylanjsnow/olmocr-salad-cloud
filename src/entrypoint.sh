@@ -5,7 +5,7 @@
 set -e
 
 VLLM_PORT="${VLLM_PORT:-30024}"
-PORT="${PORT:-8080}"
+PORT="${PORT:-8000}"
 HOST="${HOST:-0.0.0.0}"
 # Model: use repo id so vLLM uses pre-downloaded cache (HF_HOME set in with-model image)
 MODEL_PATH="${OLMOCR_MODEL_PATH:-allenai/olmOCR-2-7B-1025-FP8}"
@@ -71,4 +71,4 @@ fi
 
 # Run the conversion API (health on /, convert on POST /convert)
 echo "Starting conversion API on $HOST:$PORT ..."
-exec python /app/convert_server.py
+exec python /app/app.py

@@ -105,16 +105,32 @@ def create_app():
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB max PDF
 
+    def _vllm_ready(timeout: float = 5) -> bool:
+        """Return True if vLLM is ready to serve."""
+        try:
+            r = requests.get(f"{VLLM_BASE.rstrip('/')}/v1/models", timeout=timeout)
+            return r.status_code == 200
+        except Exception:
+            return False
+
     @app.route("/", methods=["GET"])
     @app.route("/health", methods=["GET"])
     def health():
         """Healthcheck for queue worker and load balancers."""
-        try:
-            r = requests.get(f"{VLLM_BASE.rstrip('/')}/v1/models", timeout=5)
-            ok = r.status_code == 200
-        except Exception:
-            ok = False
+        ok = _vllm_ready(timeout=5)
         return jsonify({"status": "ok" if ok else "vllm_unavailable", "vllm_ready": ok}), 200 if ok else 503
+
+    @app.route("/hc", methods=["GET"])
+    def readiness():
+        """
+        Readiness probe for Job Queue Service (e.g. Salad).
+        Returns 200 when vLLM is ready to receive jobs, 503 otherwise.
+        Use a 1s timeout so the probe completes within typical timeout limits.
+        """
+        ok = _vllm_ready(timeout=1)
+        if ok:
+            return "", 200
+        return "", 503
 
     @app.route("/convert", methods=["POST"])
     def convert():
@@ -159,6 +175,6 @@ def create_app():
 
 if __name__ == "__main__":
     host = os.environ.get("HOST", "0.0.0.0")
-    port = int(os.environ.get("PORT", "8080"))
+    port = int(os.environ.get("PORT", "8000"))
     app = create_app()
     app.run(host=host, port=port, threaded=True)

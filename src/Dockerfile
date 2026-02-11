@@ -6,13 +6,13 @@ FROM alleninstituteforai/olmocr:latest-with-model
 RUN pip install --no-cache-dir flask
 
 WORKDIR /app
-COPY convert_server.py /app/
+COPY app.py /app/
 COPY entrypoint.sh /app/
 RUN chmod +x /app/entrypoint.sh
 
-# vLLM serves on 30024 inside the container; conversion API on PORT (default 8080)
+# vLLM serves on 30024 inside the container; conversion API on PORT (default 8000 for /hc readiness probe)
 ENV VLLM_PORT=30024
-ENV PORT=8080
-EXPOSE 8080
+ENV PORT=8000
+EXPOSE 8000
 
 ENTRYPOINT ["/app/entrypoint.sh"]

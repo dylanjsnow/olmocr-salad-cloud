@@ -4,7 +4,7 @@
     "container": {
         "image": "alleninstituteforai/olmocr:latest-with-model",
         "resources": {
-            "cpu": 1,
+            "cpu": 2,
             "memory": 2048,
             "gpu_classes": [
                 "ed563892-aacd-40f5-80b7-90c9be6c759b",
@@ -22,6 +22,6 @@
     "networking": {
         "protocol": "http",
         "auth": true,
-        "port": 8080
+        "port": 8000
     }
 }

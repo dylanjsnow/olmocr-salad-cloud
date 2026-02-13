@@ -4,8 +4,8 @@
     "container": {
         "image": "alleninstituteforai/olmocr:latest-with-model",
         "resources": {
-            "cpu": 2,
-            "memory": 2048,
+            "cpu": 4,
+            "memory": 8192,
             "gpu_classes": [
                 "ed563892-aacd-40f5-80b7-90c9be6c759b",
                 "a5db5c50-cbcb-4596-ae80-6a0c8090d80f",
@@ -13,7 +13,7 @@
             ]
         }
     },
-    "autostart_policy": false,
+    "autostart_policy": true,
     "restart_policy": "always",
     "replicas": 1,
     "country_codes": [

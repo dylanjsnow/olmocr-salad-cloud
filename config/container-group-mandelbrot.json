@@ -1,0 +1,51 @@
+{
+  "name": "mandelbrot-worker",
+  "display_name": "Mandelbrot Worker",
+  "container": {
+    "image": "ghcr.io/dylanjsnow/mandelbrot:latest",
+    "resources": {
+      "cpu": 1,
+      "memory": 1024
+    }
+  },
+  "autostart_policy": false,
+  "restart_policy": "always",
+  "replicas": 1,
+  "country_codes": [],
+  "networking": {
+    "protocol": "http",
+    "auth": true,
+    "port": 8000
+  },
+  "queue_connection": {
+    "path": "/generate",
+    "port": 8000,
+    "queue_name": "{{SALAD_QUEUE_NAME}}"
+  },
+  "readiness_probe": {
+    "http": {
+      "path": "/health",
+      "port": 8000,
+      "scheme": "http",
+      "headers": []
+    },
+    "initial_delay_seconds": 10,
+    "period_seconds": 10,
+    "timeout_seconds": 5,
+    "success_threshold": 1,
+    "failure_threshold": 3
+  },
+  "liveness_probe": {
+    "http": {
+      "path": "/health",
+      "port": 8000,
+      "scheme": "http",
+      "headers": []
+    },
+    "initial_delay_seconds": 10,
+    "period_seconds": 10,
+    "timeout_seconds": 5,
+    "success_threshold": 1,
+    "failure_threshold": 3
+  }
+}

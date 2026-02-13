@@ -11,6 +11,14 @@ cd src/
 cp .env.template .env
 ```
 
+You will need to retrieve the following details from your SaladCloud and GitHub accounts:
+
+1. SaladCloud API Key: [https://portal.salad.com/api-key](https://portal.salad.com/api-key)
+2. SaladCloud Organization name: [https://portal.salad.com/organizations](https://portal.salad.com/organizations)
+3. SaladCloud Project name (from dropdown on lefthand side): [https://portal.salad.com/organizations/old-stock-consulting/projects/default/containers](https://portal.salad.com/organizations/old-stock-consulting/projects/default/containers)
+4. GitHub username (top right icon when logged in): [https://github.com/](https://github.com/)
+5. GitHub package access token (create new classic token, write:packages and read:packages access enabled at minimum): [https://github.com/settings/tokens/new](https://github.com/settings/tokens/new)
+
 ## Build and run
 
 ```bash
@@ -89,4 +97,25 @@ curl -sS -X POST \
 ```bash
 source src/.env && curl -sS -X GET "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/containers" -H "Salad-Api-Key: $SALAD_API_KEY" | jq .
 ```
+
+8. **List container group instances** — Check how many instances are deployed and their status ([List Container Group Instances API](https://docs.salad.com/reference/saladcloud-api/container-groups/list-container-group-instances)). Replace `mandelbrot-worker` with your container group name from step 6:
+
+```bash
+source src/.env && curl -sS -X GET "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/containers/mandelbrot-worker/instances" -H "Salad-Api-Key: $SALAD_API_KEY" | jq .
+```
+
+9. **Create a Job and add it to the Job Queue** — Submit a job for the queue worker to process ([Create Job API](https://docs.salad.com/reference/saladcloud-api/queues/create-job)). The `input` field may be any valid JSON; adjust it to match your worker's expected payload:
+
+```bash
+source src/.env && curl -sS -X POST "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/queues/${SALAD_QUEUE_NAME}/jobs" -H "Salad-Api-Key: $SALAD_API_KEY" -H "Content-Type: application/json" -d '{"input":{"example":true}}' | jq .
+```
+
+10. **List all jobs in the queue** — View jobs and their status ([List Jobs API](https://docs.salad.com/reference/saladcloud-api/queues/list-jobs)). To fetch a single job by ID, use the [Get Job API](https://docs.salad.com/reference/saladcloud-api/queues/get-job):
+
+```bash
+source src/.env && curl -sS -X GET "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/queues/${SALAD_QUEUE_NAME}/jobs" -H "Salad-Api-Key: $SALAD_API_KEY" | jq .
+```
+
+11. **Get the result of the Job being processed by the queue**:
+
 

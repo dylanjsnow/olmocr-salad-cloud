@@ -29,7 +29,6 @@ docker run --gpus all -p 8000:8000 olmocr-salad-cloud
 - **POST /convert** — Body: PDF bytes. Response: markdown (or JSON `{"text":"..."}` with `?format=json`).
 
 Probe config (HTTP/1.X, port 8000, timeout 1s): startup `/startup` initial_delay 60s; liveness `/live` period 10s; readiness `/hc` period 10s.
-- **POST /convert** — Body: PDF bytes. Response: markdown (or JSON `{"text":"..."}` with `?format=json`).
 
 ```bash
 curl -X POST http://localhost:8000/convert -H "Content-Type: application/pdf" --data-binary @your.pdf -o out.md
@@ -47,23 +46,34 @@ From a worker: `POST` the PDF to `http://<host>:8000/convert`, get markdown in t
 source src/.env && curl -sS -X POST "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/queues" -H "Salad-Api-Key: $SALAD_API_KEY" -H "Content-Type: application/json" -d "{\"name\":\"$SALAD_QUEUE_NAME\",\"display_name\":\"$SALAD_QUEUE_NAME\"}"
 ```
 
-Confirm the SaladCloud Job Queue exists (optional):
+2. **Confirm the SaladCloud Job Queue exists**:
 
 ```bash
-source src/.env && curl -sS -X GET "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/queues/${SALAD_QUEUE_NAME}" -H "Salad-Api-Key: $SALAD_API_KEY" -H "Content-Type: application/json"
+source src/.env && curl -sS -X GET "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/queues/${SALAD_QUEUE_NAME}" -H "Salad-Api-Key: $SALAD_API_KEY" -H "Content-Type: application/json" | jq .
 ```
 
-2. Create a SaladCloud Job Queue Worker container:
+3. **Create a SaladCloud Job Queue Worker container**:
 
 ```bash
 cd base
 docker image build -t mandelbrot:latest .
+```
+
+4. **Make the Job Queue worker container publicly available (can use either Github Container Registry, or Docker Container Registry)**:
+
+```bash
 docker login ghcr.io
 docker tag mandelbrot:latest ghcr.io/dylanjsnow/mandelbrot:latest
 docker push ghcr.io/dylanjsnow/mandelbrot:latest
 ```
 
-3. Create a SaladCloud Container Group:
+5. **Check the container works and is publicly accessible**:
+
+```bash
+docker pull ghcr.io/dylanjsnow/mandelbrot:latest
+```
+
+6. **Create a SaladCloud Container Group using this container**:
 
 ```bash
 source src/.env
@@ -72,5 +82,11 @@ curl -sS -X POST \
   -H "Salad-Api-Key: $SALAD_API_KEY" \
   -H "Content-Type: application/json" \
   -d "$(jq --arg q "$SALAD_QUEUE_NAME" '.queue_connection.queue_name = $q' config/container-group-mandelbrot.json)"
+```
+
+7. **List container groups** — Confirm the container group was created and check its status ([List Container Groups API](https://docs.salad.com/reference/saladcloud-api/container-groups/list-container-groups)):
+
+```bash
+source src/.env && curl -sS -X GET "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/containers" -H "Salad-Api-Key: $SALAD_API_KEY" | jq .
 ```
 

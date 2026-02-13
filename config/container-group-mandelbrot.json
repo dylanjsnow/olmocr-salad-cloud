@@ -12,11 +12,6 @@
   "restart_policy": "always",
   "replicas": 1,
   "country_codes": [],
-  "networking": {
-    "protocol": "http",
-    "auth": true,
-    "port": 8000
-  },
   "queue_connection": {
     "path": "/generate",
     "port": 8000,

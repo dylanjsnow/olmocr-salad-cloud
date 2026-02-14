@@ -81,7 +81,7 @@ docker push ghcr.io/dylanjsnow/mandelbrot:latest
 docker pull ghcr.io/dylanjsnow/mandelbrot:latest
 ```
 
-6. **Create a SaladCloud Container Group using this container**:
+6. **Create a SaladCloud Container Group using this container** — Requires `GHCR_USERNAME` and `GHCR_PACKAGE_ACCESS_TOKEN` in `src/.env` for private GHCR images ([Create Container Group API](https://docs.salad.com/reference/saladcloud-api/container-groups/create-container-group)):
 
 ```bash
 source src/.env
@@ -89,7 +89,9 @@ curl -sS -X POST \
   "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/containers" \
   -H "Salad-Api-Key: $SALAD_API_KEY" \
   -H "Content-Type: application/json" \
-  -d "$(jq --arg q "$SALAD_QUEUE_NAME" '.queue_connection.queue_name = $q' config/container-group-mandelbrot.json)"
+  -d "$(jq --arg q "$SALAD_QUEUE_NAME" --arg u "$GHCR_USERNAME" --arg p "$GHCR_PACKAGE_ACCESS_TOKEN" \
+    '.queue_connection.queue_name = $q | .container.registry_authentication.basic.username = $u | .container.registry_authentication.basic.password = $p' \
+    config/container-group-mandelbrot.json)" | jq .
 ```
 
 7. **List container groups** — Confirm the container group was created and check its status ([List Container Groups API](https://docs.salad.com/reference/saladcloud-api/container-groups/list-container-groups)):
@@ -98,24 +100,36 @@ curl -sS -X POST \
 source src/.env && curl -sS -X GET "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/containers" -H "Salad-Api-Key: $SALAD_API_KEY" | jq .
 ```
 
-8. **List container group instances** — Check how many instances are deployed and their status ([List Container Group Instances API](https://docs.salad.com/reference/saladcloud-api/container-groups/list-container-group-instances)). Replace `mandelbrot-worker` with your container group name from step 6:
+8. **Start the container group** — ([Start Container Group API](https://docs.salad.com/reference/saladcloud-api/container-groups/start-container-group)):
 
 ```bash
-source src/.env && curl -sS -X GET "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/containers/mandelbrot-worker/instances" -H "Salad-Api-Key: $SALAD_API_KEY" | jq .
+source src/.env && curl -sS -X POST "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/containers/${SALAD_CONTAINER_GROUP_NAME}/start" -H "Salad-Api-Key: $SALAD_API_KEY"
 ```
 
-9. **Create a Job and add it to the Job Queue** — Submit a job for the queue worker to process ([Create Job API](https://docs.salad.com/reference/saladcloud-api/queues/create-job)). The `input` field may be any valid JSON; adjust it to match your worker's expected payload:
+9. **List container group instances** — Check how many instances are deployed and their status, wait until at least one is both *started* and *ready* ([List Container Group Instances API](https://docs.salad.com/reference/saladcloud-api/container-groups/list-container-group-instances))
+
+```bash
+source src/.env && curl -sS -X GET "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/containers/${SALAD_CONTAINER_GROUP_NAME}/instances" -H "Salad-Api-Key: $SALAD_API_KEY" | jq .
+```
+
+10. **Create a Job and add it to the Job Queue** — Submit a job for the queue worker to process ([Create Job API](https://docs.salad.com/reference/saladcloud-api/queues/create-job)). The `input` field may be any valid JSON; adjust it to match your worker's expected payload:
 
 ```bash
 source src/.env && curl -sS -X POST "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/queues/${SALAD_QUEUE_NAME}/jobs" -H "Salad-Api-Key: $SALAD_API_KEY" -H "Content-Type: application/json" -d '{"input":{"example":true}}' | jq .
 ```
 
-10. **List all jobs in the queue** — View jobs and their status ([List Jobs API](https://docs.salad.com/reference/saladcloud-api/queues/list-jobs)). To fetch a single job by ID, use the [Get Job API](https://docs.salad.com/reference/saladcloud-api/queues/get-job):
+11. **List all jobs in the queue** — View jobs and their status ([List Jobs API](https://docs.salad.com/reference/saladcloud-api/queues/list-jobs)). To fetch a single job by ID, use the [Get Job API](https://docs.salad.com/reference/saladcloud-api/queues/get-job):
 
 ```bash
 source src/.env && curl -sS -X GET "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/queues/${SALAD_QUEUE_NAME}/jobs" -H "Salad-Api-Key: $SALAD_API_KEY" | jq .
 ```
 
-11. **Get the result of the Job being processed by the queue**:
+12. **Get the result of the Job being processed by the queue**:
+
+13. **Stop the SaladCloud Container Group** — ([Stop Container Group API](https://docs.salad.com/reference/saladcloud-api/container-groups/stop-container-group)):
+
+```bash
+source src/.env && curl -sS -X POST "https://api.salad.com/api/public/organizations/${SALAD_ORGANIZATION_NAME}/projects/${SALAD_PROJECT_NAME}/containers/${SALAD_CONTAINER_GROUP_NAME}/stop" -H "Salad-Api-Key: $SALAD_API_KEY"
+```
 
 

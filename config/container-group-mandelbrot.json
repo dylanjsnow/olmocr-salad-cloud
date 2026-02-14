@@ -1,11 +1,17 @@
 {
-  "name": "mandelbrot-worker",
-  "display_name": "Mandelbrot Worker",
+  "name": "mandelbrot",
+  "display_name": "Mandelbrot",
   "container": {
     "image": "ghcr.io/dylanjsnow/mandelbrot:latest",
     "resources": {
       "cpu": 1,
       "memory": 1024
+    },
+    "registry_authentication": {
+      "basic": {
+        "username": "{{GHCR_USERNAME}}",
+        "password": "{{GHCR_PACKAGE_ACCESS_TOKEN}}"
+      }
     }
   },
   "autostart_policy": false,

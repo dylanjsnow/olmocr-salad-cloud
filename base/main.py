@@ -1,7 +1,6 @@
 import asyncio
 import base64
 import logging
-import mandelbrot
 import uvicorn
 from fastapi import FastAPI, status
 from fastapi.responses import RedirectResponse
@@ -78,7 +77,7 @@ def index():
 async def generate_image(req: GenerateImageRequest):
     if req.delay != 0:
         await asyncio.sleep(req.delay)
-    img = mandelbrot.generate(
+    img = generate(
         req.width,
         req.height,
         req.iterations,

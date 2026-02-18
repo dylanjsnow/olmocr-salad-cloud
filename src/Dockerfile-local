@@ -4,26 +4,10 @@ FROM alleninstituteforai/olmocr:latest-with-model
 RUN pip install --no-cache-dir boto3 pypdf
 
 WORKDIR /app
-COPY main.py /app/
+COPY main.py entrypoint.sh /app/
+RUN chmod +x /app/entrypoint.sh
 
 ENV VLLM_PORT=30024
-ENV OLMOCR_MODEL_PATH=allenai/olmOCR-2-7B-1025-FP8
 
-# Inline entrypoint: start vLLM, wait for ready, exec command.
-# vLLM minimal args: model, port, served-model-name (main.py expects "olmocr")
-RUN printf '%s\n' \
-  '#!/bin/bash' \
-  'set -e' \
-  'p="${VLLM_PORT:-30024}" m="${OLMOCR_MODEL_PATH:-allenai/olmOCR-2-7B-1025-FP8}"' \
-  'n="${MAX_SERVER_READY_TIMEOUT:-600}"' \
-  'export OMP_NUM_THREADS=1' \
-  'vllm serve "$m" --port "$p" --served-model-name olmocr --tensor-parallel-size "${TENSOR_PARALLEL_SIZE:-1}" --data-parallel-size "${DATA_PARALLEL_SIZE:-1}" --max-model-len "${MAX_MODEL_LEN:-16384}" ${GPU_MEMORY_UTILIZATION:+--gpu-memory-utilization "$GPU_MEMORY_UTILIZATION"} &' \
-  'pid=$!' \
-  'trap "kill $pid 2>/dev/null; wait $pid 2>/dev/null; exit 0" SIGTERM SIGINT' \
-  'a=1; while [ "$a" -le "$n" ]; do curl -sSf --max-time 10 "http://127.0.0.1:${p}/v1/models" >/dev/null 2>&1 && break; a=$((a+1)); sleep 1; done' \
-  '[ "$a" -gt "$n" ] && kill $pid 2>/dev/null && exit 1 || true' \
-  'exec "${@:-python /app/main.py --help}"' \
-  > /entrypoint.sh && chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["python", "/app/main.py", "--help"]

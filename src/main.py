@@ -1,32 +1,25 @@
 #!/usr/bin/env python3
 """
-PDF-to-markdown OCR using OLMOCR + vLLM. Kelpie-compatible.
+PDF-to-markdown OCR using OLMOCR pipeline + vLLM. Kelpie-compatible.
 Uses sync.before paths: --pdf points to local path (e.g. inputs/job123/doc.pdf).
 If file doesn't exist (local testing), downloads from S3 using --s3-bucket and --s3-prefix.
+
+Delegates to olmocr.pipeline for PDF processing (no manual base64/image handling).
 
 Usage: python main.py --pdf <path> [--output <path>] [--s3-bucket BUCKET] [--s3-prefix PREFIX]
 """
 import argparse
 import os
+import subprocess
 import sys
+import tempfile
 
-import requests
-from pypdf import PdfReader
-
-from olmocr.data.renderpdf import render_pdf_to_base64png
-from olmocr.prompts import PageResponse, build_no_anchoring_v4_yaml_prompt
-from olmocr.train.dataloader import FrontMatterParser
-
-VLLM_PORT = int(os.environ.get("VLLM_PORT", "30024"))
-VLLM_BASE = os.environ.get("VLLM_BASE", f"http://127.0.0.1:{VLLM_PORT}")
-COMPLETION_URL = f"{VLLM_BASE.rstrip('/')}/v1/chat/completions"
-TARGET_LONGEST_IMAGE_DIM = int(os.environ.get("TARGET_LONGEST_IMAGE_DIM", "1288"))
-MAX_TOKENS = 8000
-MODEL = os.environ.get("OLMOCR_MODEL", "olmocr")
 S3_ENDPOINT = os.environ.get(
     "S3_ENDPOINT_URL",
     "https://1f7ddfe3a5c59735ef33c1000f4260a0.r2.cloudflarestorage.com",
 )
+VLLM_PORT = os.environ.get("VLLM_PORT", "30024")
+VLLM_SERVER = os.environ.get("VLLM_BASE", f"http://127.0.0.1:{VLLM_PORT}/v1")
 
 
 def download_file(local_path: str, bucket: str, prefix: str) -> str:
@@ -56,44 +49,15 @@ def download_file(local_path: str, bucket: str, prefix: str) -> str:
     return local_path
 
 
-def process_page(pdf_path: str, page_num: int) -> str:
-    """OCR one PDF page via vLLM, return markdown."""
-    image_base64 = render_pdf_to_base64png(
-        pdf_path, page_num, target_longest_image_dim=TARGET_LONGEST_IMAGE_DIM
-    )
-    query = {
-        "model": MODEL,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": build_no_anchoring_v4_yaml_prompt()},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}},
-                ],
-            }
-        ],
-        "max_tokens": MAX_TOKENS,
-        "temperature": 0.0,
-    }
-    r = requests.post(COMPLETION_URL, json=query, timeout=300)
-    r.raise_for_status()
-    content = r.json().get("choices", [{}])[0].get("message", {}).get("content", "")
-    if not content:
-        return ""
-    parser = FrontMatterParser(front_matter_class=PageResponse)
-    front_matter, text = parser._extract_front_matter_and_text(content)
-    page_response = parser._parse_front_matter(front_matter, text)
-    return page_response.natural_text or ""
-
-
-def pdf_to_markdown(pdf_path: str) -> str:
-    """Convert PDF to markdown (one page at a time)."""
-    reader = PdfReader(pdf_path)
-    num_pages = len(reader.pages)
-    parts = []
-    for p in range(1, num_pages + 1):
-        parts.append(process_page(pdf_path, p))
-    return "\n\n".join(parts)
+def _markdown_output_path(workspace: str, source_file: str) -> str:
+    """Compute markdown path matching olmocr.pipeline get_markdown_path for local files."""
+    relative = source_file.lstrip("/")
+    parts = [p for p in relative.split("/") if p and p != ".."]
+    relative = "/".join(parts)
+    md_filename = os.path.splitext(os.path.basename(relative))[0] + ".md"
+    dir_path = os.path.dirname(relative)
+    markdown_dir = os.path.join(workspace, "markdown", dir_path) if dir_path else os.path.join(workspace, "markdown")
+    return os.path.join(markdown_dir, md_filename)
 
 
 def main():
@@ -104,15 +68,32 @@ def main():
     ap.add_argument("--s3-prefix", help="S3/R2 object key for download when file missing (local test)")
     args = ap.parse_args()
 
-    pdf_path = args.pdf
+    pdf_path = os.path.abspath(args.pdf)
     if not os.path.isfile(pdf_path):
         if args.s3_bucket and args.s3_prefix:
             pdf_path = download_file(pdf_path, args.s3_bucket, args.s3_prefix)
         else:
-            print(f"error: file not found: {pdf_path} (set --s3-bucket and --s3-prefix for download)", file=sys.stderr)
+            print(f"error: file not found: {args.pdf} (set --s3-bucket and --s3-prefix for download)", file=sys.stderr)
             sys.exit(1)
 
-    markdown = pdf_to_markdown(pdf_path)
+    with tempfile.TemporaryDirectory() as workspace:
+        cmd = [
+            sys.executable, "-m", "olmocr.pipeline", workspace,
+            "--server", VLLM_SERVER.rstrip("/"),
+            "--model", os.environ.get("OLMOCR_MODEL", "olmocr"),
+            "--markdown",
+            "--pdfs", pdf_path,
+        ]
+        subprocess.run(cmd, check=True)
+
+        md_path = _markdown_output_path(workspace, pdf_path)
+        if not os.path.isfile(md_path):
+            print(f"error: pipeline did not produce {md_path}", file=sys.stderr)
+            sys.exit(1)
+
+        with open(md_path) as f:
+            markdown = f.read()
+
     print(markdown)
 
     if args.output:

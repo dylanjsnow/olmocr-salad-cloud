@@ -1,7 +1,7 @@
 # Local-test OLMOCR PDF worker. Kelpie-compatible.
 FROM alleninstituteforai/olmocr:latest-with-model
 
-RUN pip install --no-cache-dir boto3 pypdf
+RUN pip install --no-cache-dir boto3
 
 WORKDIR /app
 COPY main.py entrypoint.sh /app/

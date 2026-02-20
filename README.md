@@ -14,12 +14,12 @@ PDF-to-markdown OCR worker using OLMOCR + vLLM. Kelpie-ready for coordinating GP
 ./run_test.sh
 ```
 
-Downloads `1-23-2026 402f_Notice.pdf` from the `epstein-documents` R2 bucket, runs OCR, and writes markdown to `data/output.md`.
+Downloads `berkshire-hathaway-202310-k.pdf` from the `epstein-documents` R2 bucket, runs OCR, and writes markdown to `data/output.md`.
 
-To test a different PDF in the bucket:
+To test a different PDF in the bucket (quote the path—required when it contains `/`):
 
 ```bash
-PDF_PREFIX="your-file.pdf" ./run_test.sh
+PDF_PREFIX="data/berkshire-hathaway-202310-k.pdf" ./run_test.sh
 ```
 
 ## Usage
@@ -31,7 +31,7 @@ PDF_PREFIX="your-file.pdf" ./run_test.sh
 python main.py --pdf /path/to/doc.pdf --output /path/to/output.md
 
 # Local test: download from S3/R2 when file doesn't exist
-python main.py --pdf /data/doc.pdf --s3-bucket epstein-documents --s3-prefix "1-23-2026 402f_Notice.pdf" -o /data/output.md
+python main.py --pdf /data/doc.pdf --s3-bucket epstein-documents --s3-prefix "berkshire-hathaway-202310-k.pdf" -o /data/output.md
 ```
 
 ## Kelpie job shape

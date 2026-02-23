@@ -10,16 +10,25 @@ PDF-to-markdown OCR worker using OLMOCR + vLLM. Kelpie-ready for coordinating GP
 
 ## Quick test (local GPU)
 
+From the project root:
+
 ```bash
-./run_test.sh
+docker build -t olmocr-kelpie:latest -f src/Dockerfile-local src/ && docker run --rm --gpus all --env-file src/.env -v "$(pwd)/data:/data" olmocr-kelpie:latest python /app/main.py --pdf /data/berkshire-hathaway-202310-k.pdf --s3-bucket epstein-documents --s3-prefix "data/berkshire-hathaway-202310-k.pdf" -o /data/output.md
 ```
 
-Downloads `berkshire-hathaway-202310-k.pdf` from the `epstein-documents` R2 bucket, runs OCR, and writes markdown to `data/output.md`.
+Downloads `data/berkshire-hathaway-202310-k.pdf` from the `epstein-documents` R2 bucket, runs OCR, and writes markdown to `data/output.md`.
 
-To test a different PDF in the bucket (quote the path—required when it contains `/`):
+To upload the result to R2 instead of writing locally:
 
 ```bash
-PDF_PREFIX="data/berkshire-hathaway-202310-k.pdf" ./run_test.sh
+S3_OUTPUT="data/output/berkshire-hathaway-202310-k.md" ./run_test.sh
+```
+
+Or with the one-liner, use `--s3-output` instead of `-o`:
+
+```bash
+docker build -t olmocr-kelpie:latest -f src/Dockerfile-local src/
+docker run --rm --gpus all --env-file src/.env -v "$(pwd)/data:/data" olmocr-kelpie:latest python /app/main.py --pdf /data/berkshire-hathaway-202310-k.pdf --s3-bucket epstein-documents --s3-prefix "data/berkshire-hathaway-202310-k.pdf" --s3-output "data/output/berkshire-hathaway-202310-k.md"
 ```
 
 ## Usage
@@ -32,6 +41,9 @@ python main.py --pdf /path/to/doc.pdf --output /path/to/output.md
 
 # Local test: download from S3/R2 when file doesn't exist
 python main.py --pdf /data/doc.pdf --s3-bucket epstein-documents --s3-prefix "berkshire-hathaway-202310-k.pdf" -o /data/output.md
+
+# Upload result to S3/R2 instead of local file
+python main.py --pdf /data/doc.pdf --s3-bucket epstein-documents --s3-prefix "data/doc.pdf" --s3-output "data/output/doc.md"
 ```
 
 ## Kelpie job shape

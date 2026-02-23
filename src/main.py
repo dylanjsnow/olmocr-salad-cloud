@@ -6,7 +6,7 @@ If file doesn't exist (local testing), downloads from S3 using --s3-bucket and -
 
 Delegates to olmocr.pipeline for PDF processing (no manual base64/image handling).
 
-Usage: python main.py --pdf <path> [--output <path>] [--s3-bucket BUCKET] [--s3-prefix PREFIX]
+Usage: python main.py --pdf <path> [--output <path>] [--s3-output <key>] [--s3-bucket BUCKET] [--s3-prefix PREFIX]
 """
 import argparse
 import os
@@ -49,6 +49,26 @@ def download_file(local_path: str, bucket: str, prefix: str) -> str:
     return local_path
 
 
+def upload_file(local_path: str, bucket: str, key: str) -> None:
+    """Upload a file to S3/R2."""
+    try:
+        import boto3
+        from botocore.config import Config
+
+        config = Config(region_name="auto", signature_version="s3v4")
+        client = boto3.client(
+            "s3",
+            endpoint_url=S3_ENDPOINT,
+            config=config,
+            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+        )
+        client.upload_file(Filename=local_path, Bucket=bucket, Key=key)
+    except Exception as e:
+        print(f"error: upload failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def _markdown_output_path(workspace: str, source_file: str) -> str:
     """Compute markdown path matching olmocr.pipeline get_markdown_path for local files."""
     relative = source_file.lstrip("/")
@@ -63,8 +83,9 @@ def _markdown_output_path(workspace: str, source_file: str) -> str:
 def main():
     ap = argparse.ArgumentParser(description="OLMOCR PDF to markdown")
     ap.add_argument("--pdf", required=True, help="Local path to PDF (sync.before destination)")
-    ap.add_argument("--output", "-o", help="Write markdown to file (for Kelpie sync.after)")
-    ap.add_argument("--s3-bucket", help="S3/R2 bucket for download when file missing (local test)")
+    ap.add_argument("--output", "-o", help="Write markdown to local file")
+    ap.add_argument("--s3-output", help="Upload markdown to S3/R2 at this key (requires --s3-bucket)")
+    ap.add_argument("--s3-bucket", help="S3/R2 bucket for download/upload")
     ap.add_argument("--s3-prefix", help="S3/R2 object key for download when file missing (local test)")
     args = ap.parse_args()
 
@@ -100,6 +121,18 @@ def main():
         os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
         with open(args.output, "w") as f:
             f.write(markdown)
+
+    if args.s3_output:
+        if not args.s3_bucket:
+            print("error: --s3-output requires --s3-bucket", file=sys.stderr)
+            sys.exit(1)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write(markdown)
+            tmp_path = f.name
+        try:
+            upload_file(tmp_path, args.s3_bucket, args.s3_output)
+        finally:
+            os.unlink(tmp_path)
 
 
 if __name__ == "__main__":

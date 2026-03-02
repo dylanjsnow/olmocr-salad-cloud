@@ -77,13 +77,23 @@ Container: vLLM starts via entrypoint; Kelpie runs `main.py` per job. Add the Ke
 
 ## Environment configuration
 
-Copy `src/.env.template` to `src/.env` and configure:
+Copy `src/.env.template` to `src/.env` and **complete the empty values at the bottom** before use:
 
-| Variable | Used by | Purpose |
-|----------|---------|---------|
-| `AWS_ACCESS_KEY_ID` | main.py | R2/S3-compatible storage access |
-| `AWS_SECRET_ACCESS_KEY` | main.py | R2/S3-compatible storage secret |
-| `S3_ENDPOINT_URL` | main.py | R2 endpoint |
-| `VLLM_PORT`, `OLMOCR_MODEL_PATH`, etc. | Dockerfile entrypoint, main.py | vLLM server and OLMOCR settings |
+```bash
+cp src/.env.template src/.env
+# Edit src/.env and fill in the required variables (see table below)
+```
 
-When deploying with Kelpie, the Kelpie binary will require `KELPIE_API_URL` and `SALAD_PROJECT`; add those to your deployment environment.
+| Variable | Required for | Purpose |
+|----------|--------------|---------|
+| `S3_ENDPOINT_URL` | Local test, S3/R2 | R2 endpoint URL |
+| `AWS_ACCESS_KEY_ID` | Local test, S3/R2 | R2/S3-compatible storage access |
+| `AWS_SECRET_ACCESS_KEY` | Local test, S3/R2 | R2/S3-compatible storage secret |
+| `KELPIE_API_KEY` | Kelpie deployment | Kelpie API authentication |
+| `SALAD_API_KEY` | Kelpie deployment | Salad API authentication |
+| `SALAD_CONTAINER_GROUP_ID` | Kelpie deployment | Set by Salad on nodes; set manually for local testing |
+| `SALAD_MACHINE_ID` | Kelpie deployment | Set by Salad on nodes |
+| `SALAD_ORGANIZATION_NAME` | Kelpie deployment | Set by Salad on nodes; set manually for local testing |
+| `SALAD_PROJECT_NAME` | Kelpie deployment | Salad project name |
+
+Variables with defaults (vLLM, OLMOCR, Kelpie, file watcher) are already set in the template.

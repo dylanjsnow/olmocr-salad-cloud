@@ -1,0 +1,13 @@
+# Local-test OLMOCR PDF worker. Kelpie-compatible.
+FROM alleninstituteforai/olmocr:latest-with-model
+
+RUN pip install --no-cache-dir boto3
+
+WORKDIR /app
+COPY main.py entrypoint.sh /app/
+RUN chmod +x /app/entrypoint.sh
+
+ENV VLLM_PORT=30024
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["python", "/app/main.py", "--help"]
